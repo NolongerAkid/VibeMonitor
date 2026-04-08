@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Vibe Monitor</title>
+<style>
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --black:#000;--white:#fff;
+    --green:#34c759;--green-dim:rgba(52,199,89,.15);
+    --orange:#ff9f0a;--orange-dim:rgba(255,159,10,.12);
+    --blue:#0a84ff;--blue-dim:rgba(10,132,255,.15);
+    --purple:#bf5af2;--purple-dim:rgba(191,90,242,.15);
+    --gray:#8e8e93;--gray-dim:rgba(142,142,147,.12);
+    --red:#ff453a;
+    --card-bg:rgba(255,255,255,.05);--card-hover:rgba(255,255,255,.09);
+    --border:rgba(255,255,255,.06);--border-hover:rgba(255,255,255,.12);
+    --text-primary:rgba(255,255,255,1);
+    --text-secondary:rgba(255,255,255,.6);
+    --text-tertiary:rgba(255,255,255,.4);
+    --radius:20px;--radius-sm:12px;--radius-xs:8px;
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",system-ui,sans-serif;
+    --mono:"SF Mono","Fira Code",ui-monospace,monospace;
+    --spring:cubic-bezier(.175,.885,.32,1.275);
+    --ease:cubic-bezier(.25,1,.5,1);
+  }
+  html,body{
+    height:100%;background:transparent;
+    font-family:var(--font);color:var(--text-primary);
+    overflow:hidden;-webkit-app-region:no-drag;
+    user-select:none;
+  }
+
+  /* ── Collapsed ── */
+  #collapsed{
+    width:100%;height:36px;
+    background:var(--black);border-radius:18px;
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    cursor:pointer;
+    box-shadow:0 2px 20px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.08);
+    transition:all .3s var(--spring);
+  }
+  #collapsed:hover{transform:scale(1.03);box-shadow:0 4px 30px rgba(0,0,0,.7),0 0 0 .5px rgba(255,255,255,.12)}
+  #collapsed.hidden{display:none}
+  .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;transition:background .3s}
+  .dot.green{background:var(--green)}
+  .dot.orange{background:var(--orange);animation:pulse-o 1.8s ease-in-out infinite}
+  .dot.blue{background:var(--blue)}
+  .dot.purple{background:var(--purple)}
+  .dot.gray{background:var(--gray)}
+  @keyframes pulse-o{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.7)}}
+  .count{font-size:13px;font-weight:500;color:var(--text-secondary);margin-left:4px}
+
+  /* ── Expanded ── */
+  #panel{
+    width:100%;height:100%;
+    background:var(--black);border-radius:var(--radius);
+    box-shadow:0 8px 60px rgba(0,0,0,.8),0 0 0 .5px rgba(255,255,255,.08);
+    display:none;flex-direction:column;overflow:hidden;
+    animation:panel-in .3s var(--ease) both;
+  }
+  #panel.visible{display:flex}
+  @keyframes panel-in{from{opacity:0;transform:scale(.95)}}
+
+  /* Header */
+  .hdr{display:flex;align-items:center;padding:14px 16px 10px;gap:10px;flex-shrink:0}
+  .waveform{display:flex;align-items:flex-end;gap:2px;height:16px}
+  .waveform .bar{width:3px;border-radius:1.5px;background:var(--green);animation:wave 1.2s ease-in-out infinite}
+  .waveform .bar:nth-child(1){height:6px;animation-delay:0s}
+  .waveform .bar:nth-child(2){height:12px;animation-delay:.15s}
+  .waveform .bar:nth-child(3){height:8px;animation-delay:.3s}
+  .waveform .bar:nth-child(4){height:14px;animation-delay:.1s}
+  .waveform .bar:nth-child(5){height:5px;animation-delay:.25s}
+  @keyframes wave{0%,100%{height:4px}50%{height:16px}}
+  .hdr-title{font-size:13px;font-weight:600;color:var(--text-secondary);flex:1}
+  .close-btn{
+    width:28px;height:28px;border-radius:50%;
+    background:rgba(255,255,255,.06);border:none;
+    color:var(--text-tertiary);font-size:14px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:all .2s;
+  }
+  .close-btn:hover{background:rgba(255,255,255,.12);color:var(--text-primary)}
+  .new-btn{
+    width:28px;height:28px;border-radius:50%;
+    background:rgba(52,199,89,.12);border:none;
+    color:var(--green);font-size:18px;font-weight:300;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:all .2s;
+  }
+  .new-btn:hover{background:rgba(52,199,89,.25);color:#fff}
+  .divider{height:.5px;background:var(--border);margin:0 16px;flex-shrink:0}
+
+  /* Session list */
+  .slist{flex:1;overflow-y:auto;padding:8px;scrollbar-width:none}
+  .slist::-webkit-scrollbar{display:none}
+
+  /* Session card */
+  .scard{
+    background:var(--card-bg);border:1px solid var(--border);
+    border-radius:var(--radius-sm);padding:12px;margin-bottom:6px;
+    cursor:pointer;transition:all .25s var(--ease);
+    animation:card-in .35s var(--ease) both;
+    position:relative;
+  }
+  @keyframes card-in{from{opacity:0;transform:translateY(8px)}}
+  .scard:hover{background:var(--card-hover);border-color:var(--border-hover)}
+  .scard.attention{border-color:rgba(255,159,10,.2);border-left:3px solid var(--orange);padding-left:10px}
+  .scard.attention:hover{border-color:rgba(255,159,10,.35);border-left:3px solid var(--orange)}
+  .scard.unread{border-color:rgba(10,132,255,.25);border-left:3px solid var(--blue);padding-left:10px}
+  .scard:last-child{margin-bottom:0}
+
+  .ctop{display:flex;align-items:center;gap:8px}
+  .aicon{
+    width:28px;height:28px;border-radius:var(--radius-xs);
+    display:flex;align-items:center;justify-content:center;
+    font-size:14px;font-weight:700;flex-shrink:0;color:#fff;
+  }
+  .aicon.claude{background:linear-gradient(135deg,#d97706,#f59e0b)}
+  .aicon.codex{background:linear-gradient(135deg,#059669,#34d399)}
+  .aicon.gemini{background:linear-gradient(135deg,#7c3aed,#a78bfa)}
+  .aicon.cursor{background:linear-gradient(135deg,#2563eb,#60a5fa)}
+  .aicon.default{background:linear-gradient(135deg,#6366f1,#818cf8)}
+  .cinfo{flex:1;min-width:0}
+  .pname{font-size:13px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
+  .pname-wrap{display:flex;align-items:center;gap:4px;min-width:0}
+  .pname-edit{
+    width:14px;height:14px;font-size:11px;cursor:pointer;opacity:.3;
+    color:var(--text-tertiary);transition:opacity .15s;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .scard:hover .pname-edit{opacity:.6}
+  .pname-edit:hover{opacity:1!important;color:var(--text-secondary)}
+  .pname-input{
+    font-size:13px;font-weight:600;font-family:var(--font);
+    background:rgba(255,255,255,.08);border:1px solid var(--border-hover);
+    border-radius:4px;padding:1px 6px;color:var(--text-primary);
+    outline:none;width:100%;
+  }
+  .badge{
+    display:inline-flex;align-items:center;gap:4px;
+    padding:2px 8px;border-radius:10px;
+    font-size:10px;font-weight:600;letter-spacing:.02em;
+    text-transform:uppercase;margin-top:2px;
+  }
+  .bdot{width:5px;height:5px;border-radius:50%}
+  .badge.green{background:var(--green-dim);color:var(--green)}.badge.green .bdot{background:var(--green)}
+  .badge.orange{background:var(--orange-dim);color:var(--orange)}.badge.orange .bdot{background:var(--orange)}
+  .badge.blue{background:var(--blue-dim);color:var(--blue)}.badge.blue .bdot{background:var(--blue)}
+  .badge.purple{background:var(--purple-dim);color:var(--purple)}.badge.purple .bdot{background:var(--purple)}
+  .badge.gray{background:var(--gray-dim);color:var(--gray)}.badge.gray .bdot{background:var(--gray)}
+
+  .jbtn{
+    width:28px;height:28px;border-radius:50%;
+    background:rgba(255,255,255,.04);border:none;
+    color:var(--text-tertiary);font-size:13px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:all .2s;flex-shrink:0;opacity:.5;
+  }
+  .scard:hover .jbtn{opacity:1}
+  .jbtn:hover{background:rgba(255,255,255,.1);color:var(--text-primary)}
+
+  /* Content */
+  .ccontent{margin-top:10px}
+
+  /* Approval */
+  .apcard{background:var(--orange-dim);border:1px solid rgba(255,159,10,.18);border-radius:var(--radius-xs);padding:10px}
+  .aphdr{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .aptitle{font-size:11px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:.04em}
+  .aptool{font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:2px}
+  .apcmd{
+    font-size:11px;font-family:var(--mono);color:var(--text-secondary);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    margin-bottom:10px;background:rgba(0,0,0,.25);padding:4px 6px;border-radius:4px;
+  }
+  .apactions{display:flex;gap:6px}
+  .apactions button{
+    flex:1;padding:6px 0;border:none;border-radius:6px;
+    font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;
+    font-family:var(--font);
+  }
+  .btn-deny{background:rgba(255,255,255,.08);color:var(--text-secondary)}
+  .btn-deny:hover{background:rgba(255,255,255,.14);color:var(--text-primary)}
+  .btn-allow{background:var(--green);color:#000}
+  .btn-allow:hover{filter:brightness(1.1)}
+  .btn-always{background:rgba(52,199,89,.15);color:var(--green)}
+  .btn-always:hover{background:rgba(52,199,89,.25)}
+
+  /* Question */
+  .qcard{background:var(--orange-dim);border:1px solid rgba(255,159,10,.18);border-radius:var(--radius-xs);padding:10px}
+  .qhdr{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .qlabel{font-size:11px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:.04em}
+  .qtext{font-size:12px;color:var(--text-primary);line-height:1.4;margin-bottom:8px}
+  .qopts{display:flex;flex-direction:column;gap:4px}
+  .qopt{
+    background:rgba(255,255,255,.06);border:1px solid var(--border);
+    border-radius:6px;padding:6px 8px;font-size:11px;color:var(--text-secondary);
+    cursor:pointer;transition:all .15s;
+  }
+  .qopt:hover{background:rgba(255,255,255,.1);border-color:var(--border-hover);color:var(--text-primary)}
+  .qopt b{color:var(--text-primary);font-weight:600}
+  .qopt small{color:var(--text-tertiary);display:block;margin-top:1px}
+
+  /* Tool activity */
+  .tact{display:flex;align-items:center;gap:8px;padding:4px 0}
+  .ticon{
+    width:24px;height:24px;border-radius:6px;background:var(--blue-dim);
+    display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;
+  }
+  .ttext{font-size:12px;color:var(--text-secondary)}
+  .ttext span{color:var(--blue);font-weight:500}
+  .tdots{display:inline-flex;gap:2px;margin-left:2px;vertical-align:middle}
+  .tdots i{width:3px;height:3px;border-radius:50%;background:var(--blue);display:inline-block;animation:blink 1.4s infinite both}
+  .tdots i:nth-child(2){animation-delay:.2s}
+  .tdots i:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+
+  /* Last prompt */
+  .lprompt{font-size:12px;color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:2px 0}
+  .lprompt b{color:var(--text-secondary);font-weight:500}
+
+  /* Footer */
+  .cfooter{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.04)}
+  .atype{font-size:10px;color:var(--text-tertiary);font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+  .elap{font-size:10px;color:var(--text-tertiary);font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+  /* Empty */
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 20px;text-align:center}
+  .empty-icon{font-size:36px;margin-bottom:12px;opacity:.5}
+  .empty-title{font-size:15px;font-weight:600;color:var(--text-secondary);margin-bottom:4px}
+  .empty-desc{font-size:12px;color:var(--text-tertiary)}
+
+  /* Bottom bar */
+  .bottom{display:flex;align-items:center;gap:5px;padding:6px 16px 10px;flex-shrink:0}
+  .cdot{width:6px;height:6px;border-radius:50%;background:var(--green);transition:background .3s}
+  .ctext{font-size:10px;color:var(--text-tertiary);letter-spacing:.02em}
+</style>
+</head>
+<body>
+
+<!-- Collapsed -->
+<div id="collapsed">
+  <span id="dots"></span>
+  <span class="count" id="ccount"></span>
+</div>
+
+<!-- Expanded -->
+<div id="panel">
+  <div class="hdr">
+    <div class="waveform"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+    <span class="hdr-title" id="htitle">0 sessions</span>
+    <button class="new-btn" id="newBtn" title="New Claude Code session">+</button>
+    <button class="close-btn" id="closeBtn">&times;</button>
+  </div>
+  <div class="divider"></div>
+  <div class="slist" id="slist"></div>
+  <div class="divider"></div>
+  <div class="bottom">
+    <div class="cdot" id="cdot"></div>
+    <span class="ctext">Vibe Monitor</span>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const vm = window.vibeMonitor;
+  let sessions = [];
+  let expanded = false;
+
+  const $c = document.getElementById("collapsed");
+  const $dots = document.getElementById("dots");
+  const $ccount = document.getElementById("ccount");
+  const $panel = document.getElementById("panel");
+  const $htitle = document.getElementById("htitle");
+  const $slist = document.getElementById("slist");
+
+  // Helpers
+  const color = s => {
+    const m = { waiting_for_approval:"orange", question:"orange", processing:"green", thinking:"green",
+      running_tool:"green", waiting_for_input:"blue", compacting:"purple", ended:"gray" };
+    return m[s] || "gray";
+  };
+  const label = s => (s||"idle").replace(/_/g," ");
+  const icon = t => {
+    const n = (t||"").toLowerCase();
+    if (n.includes("claude")) return { cls:"claude", ch:"C" };
+    if (n.includes("codex")) return { cls:"codex", ch:"X" };
+    if (n.includes("gemini")) return { cls:"gemini", ch:"G" };
+    if (n.includes("cursor")) return { cls:"cursor", ch:"Cu" };
+    return { cls:"default", ch:(n.charAt(0)||"A").toUpperCase() };
+  };
+  const ticon = n => {
+    const l = (n||"").toLowerCase();
+    if (l.includes("edit")||l.includes("write")) return "\u270F";
+    if (l.includes("read")) return "\u{1F4C4}";
+    if (l.includes("bash")) return "\u25B6";
+    if (l.includes("grep")||l.includes("glob")||l.includes("search")) return "\u{1F50D}";
+    return "\u2699";
+  };
+  const tlabel = n => {
+    const l = (n||"").toLowerCase();
+    if (l.includes("edit")) return "Editing file";
+    if (l.includes("write")) return "Writing file";
+    if (l.includes("read")) return "Reading file";
+    if (l.includes("bash")) return "Running command";
+    if (l.includes("grep")) return "Searching";
+    if (l.includes("glob")) return "Finding files";
+    return n||"Running tool";
+  };
+  const elapsed = ts => {
+    if (!ts) return "--:--";
+    const d = Math.max(0, Math.floor((Date.now()-new Date(ts).getTime())/1000));
+    const h=Math.floor(d/3600), m=Math.floor((d%3600)/60), s=d%60;
+    const p = n => String(n).padStart(2,"0");
+    return h>0?`${h}:${p(m)}:${p(s)}`:`${p(m)}:${p(s)}`;
+  };
+  const esc = s => { if(!s)return""; const d=document.createElement("div"); d.textContent=s; return d.innerHTML; };
+
+  // Sort: unread/attention first, then by status color
+  const needsAttention = s => {
+    if (s.status === "waiting_for_approval" || s.status === "question") return true;
+    if (s.status === "waiting_for_input" && !s.read) return true;
+    return false;
+  };
+  const sorted = () => [...sessions].sort((a,b) => {
+    const aN = needsAttention(a) ? 0 : 1;
+    const bN = needsAttention(b) ? 0 : 1;
+    if (aN !== bN) return aN - bN;
+    const p = { orange:0, green:1, blue:2, purple:3, gray:4 };
+    return (p[color(a.status)]??4)-(p[color(b.status)]??4);
+  });
+
+  // Status summary helper
+  function statusSummary(list) {
+    const n = list.length;
+    if (n === 0) return "No sessions";
+    const attn = list.filter(s => s.status === "waiting_for_approval" || s.status === "question").length;
+    const unread = list.filter(s => s.status === "waiting_for_input" && !s.read).length;
+    const active = list.filter(s => s.status === "processing" || s.status === "running_tool" || s.status === "compacting").length;
+    let parts = [`${n} session${n>1?"s":""}`];
+    if (attn > 0) parts.push(`${attn} pending`);
+    if (active > 0) parts.push(`${active} active`);
+    if (unread > 0) parts.push(`${unread} done`);
+    return parts.join(" \u00b7 ");
+  }
+
+  // Collapsed summary: show unread + attention + active counts
+  function collapsedSummary(list) {
+    const attn = list.filter(s => s.status === "waiting_for_approval" || s.status === "question").length;
+    const unread = list.filter(s => s.status === "waiting_for_input" && !s.read).length;
+    const active = list.filter(s => s.status === "processing" || s.status === "running_tool" || s.status === "compacting").length;
+    const total = attn + unread + active;
+    if (total === 0) return "All clear";
+    let parts = [];
+    if (attn > 0) parts.push(`${attn} pending`);
+    if (active > 0) parts.push(`${active} running`);
+    if (unread > 0) parts.push(`${unread} done`);
+    return parts.join(" \u00b7 ");
+  }
+
+  // Render collapsed
+  function renderCollapsed() {
+    const attnSessions = sessions.filter(needsAttention).slice(0,5);
+    const dots = attnSessions.length > 0 ? attnSessions : sorted().slice(0,3);
+    $dots.innerHTML = dots.map(x => `<div class="dot ${color(x.status)}"></div>`).join("");
+    $ccount.textContent = collapsedSummary(sessions);
+  }
+
+  // Render expanded
+  function renderPanel() {
+    $htitle.textContent = statusSummary(sessions);
+
+    if (sessions.length===0) {
+      $slist.innerHTML = `<div class="empty"><div class="empty-icon">\u2728</div><div class="empty-title">The island awaits</div><div class="empty-desc">Start a new AI coding session</div></div>`;
+      return;
+    }
+
+    $slist.innerHTML = sorted().map(s => {
+      const c = color(s.status);
+      const ic = icon(s.agentType);
+      const proj = esc(s.customName || s.projectName || s.cwd || "Untitled");
+      const attn = (s.status==="waiting_for_approval"||s.status==="question") ? " attention" : "";
+      const unread = (!s.read && s.status==="waiting_for_input") ? " unread" : "";
+
+      let content = "";
+      if (s.status==="waiting_for_approval" && s.approval) {
+        const cmd = esc(s.approval.command||s.approval.filePath||"");
+        content = `<div class="ccontent"><div class="apcard">
+          <div class="aphdr"><span>\u26A0</span><span class="aptitle">Needs Approval</span></div>
+          <div class="aptool">${esc(s.approval.toolName||"Tool")}</div>
+          ${cmd?`<div class="apcmd">${cmd}</div>`:""}
+          <div class="apactions">
+            <button class="btn-deny" data-sid="${esc(s.id)}" data-act="deny">Deny</button>
+            <button class="btn-allow" data-sid="${esc(s.id)}" data-act="allow">Allow</button>
+            <button class="btn-always" data-sid="${esc(s.id)}" data-act="always">Always</button>
+          </div></div></div>`;
+      } else if (s.status==="question" && s.question) {
+        const qs = Array.isArray(s.question) ? s.question : s.question.questions || [];
+        const q = qs[0];
+        if (q) {
+          const opts = (q.options||[]).map(o => `<div class="qopt"><b>${esc(o.label)}</b>${o.description?`<small>${esc(o.description)}</small>`:""}</div>`).join("");
+          content = `<div class="ccontent"><div class="qcard">
+            <div class="qhdr"><span>\u2753</span><span class="qlabel">${esc(q.header||"Question")}</span></div>
+            <div class="qtext">${esc(q.question)}</div>
+            ${opts?`<div class="qopts">${opts}</div>`:""}
+          </div></div>`;
+        }
+      } else if (s.status==="running_tool" && s.currentToolName) {
+        content = `<div class="ccontent"><div class="tact">
+          <div class="ticon">${ticon(s.currentToolName)}</div>
+          <div class="ttext"><span>${esc(tlabel(s.currentToolName))}</span><span class="tdots"><i></i><i></i><i></i></span></div>
+        </div></div>`;
+      } else if (s.lastUserPrompt) {
+        content = `<div class="ccontent"><div class="lprompt"><b>You:</b> ${esc(s.lastUserPrompt)}</div></div>`;
+      }
+
+      const agentName = { claude:"Claude Code", codex:"Codex", gemini:"Gemini", cursor:"Cursor", copilot:"Copilot" }[s.agentType] || "Agent";
+
+      return `<div class="scard${attn}${unread}" data-jump="${esc(s.id)}">
+        <div class="ctop">
+          <div class="aicon ${ic.cls}">${ic.ch}</div>
+          <div class="cinfo">
+            <div class="pname-wrap">
+              <div class="pname" data-rename="${esc(s.id)}">${proj}</div>
+              <div class="pname-edit" data-editbtn="${esc(s.id)}" title="Rename">\u270F</div>
+            </div>
+            <div class="badge ${c}"><span class="bdot"></span>${esc(label(s.status))}</div>
+          </div>
+          <button class="jbtn" data-jbtn="${esc(s.id)}">\u2197</button>
+        </div>
+        ${content}
+        <div class="cfooter">
+          <span class="atype">${esc(agentName)}</span>
+          <span class="elap" data-ts="${s.startedAt||""}">${elapsed(s.startedAt)}</span>
+        </div>
+      </div>`;
+    }).join("");
+  }
+
+  // Panel state
+  function setExpanded(v) {
+    expanded = v;
+    if (v) {
+      $c.classList.add("hidden");
+      $panel.classList.add("visible");
+      renderPanel();
+    } else {
+      $c.classList.remove("hidden");
+      $panel.classList.remove("visible");
+    }
+  }
+
+  // Events
+  $c.addEventListener("click", () => vm.expandPanel());
+  document.getElementById("closeBtn").addEventListener("click", () => vm.collapsePanel());
+  document.getElementById("newBtn").addEventListener("click", (e) => { e.stopPropagation(); vm.newSession(); });
+
+  // Delegate clicks
+  $slist.addEventListener("click", e => {
+    const apBtn = e.target.closest("[data-act]");
+    if (apBtn) {
+      e.stopPropagation();
+      vm.approvalAction(apBtn.dataset.sid, apBtn.dataset.act);
+      return;
+    }
+    const editBtn = e.target.closest("[data-editbtn]");
+    if (editBtn) {
+      e.stopPropagation();
+      startRename(editBtn.dataset.editbtn);
+      return;
+    }
+    const jBtn = e.target.closest("[data-jbtn]");
+    if (jBtn) {
+      e.stopPropagation();
+      vm.markRead(jBtn.dataset.jbtn);
+      vm.jumpToSession(jBtn.dataset.jbtn);
+      return;
+    }
+    const card = e.target.closest("[data-jump]");
+    if (card) {
+      vm.markRead(card.dataset.jump);
+      vm.jumpToSession(card.dataset.jump);
+    }
+  });
+
+  // Double-click to rename
+  $slist.addEventListener("dblclick", e => {
+    const pname = e.target.closest("[data-rename]");
+    if (pname) {
+      e.stopPropagation();
+      startRename(pname.dataset.rename);
+    }
+  });
+
+  // Inline rename
+  function startRename(sid) {
+    const el = document.querySelector(`[data-rename="${sid}"]`);
+    if (!el || el.querySelector("input")) return;
+    const s = sessions.find(x => x.id === sid);
+    if (!s) return;
+
+    const cur = s.customName || s.projectName || "";
+    const wrap = el.closest(".pname-wrap");
+    const editBtn = wrap ? wrap.querySelector(".pname-edit") : null;
+    if (editBtn) editBtn.style.display = "none";
+
+    el.innerHTML = `<input class="pname-input" value="${esc(cur)}" placeholder="${esc(s.projectName||"Name...")}">`;
+    const inp = el.querySelector("input");
+    inp.focus();
+    inp.select();
+
+    const commit = () => {
+      const val = inp.value.trim();
+      vm.renameSession(sid, val);
+      el.textContent = val || s.projectName || "Untitled";
+      if (editBtn) editBtn.style.display = "";
+    };
+    inp.addEventListener("keydown", e2 => {
+      if (e2.key === "Enter") { e2.preventDefault(); commit(); }
+      if (e2.key === "Escape") { e2.preventDefault(); el.textContent = cur || s.projectName || "Untitled"; if (editBtn) editBtn.style.display = ""; }
+    });
+    inp.addEventListener("blur", commit);
+  }
+
+  // IPC
+  vm.onSessionsUpdate(data => {
+    sessions = data;
+    renderCollapsed();
+    if (expanded) renderPanel();
+  });
+
+  vm.onPanelState(v => setExpanded(v));
+
+  // Elapsed ticker
+  setInterval(() => {
+    document.querySelectorAll(".elap[data-ts]").forEach(el => {
+      const ts = el.dataset.ts;
+      if (ts) el.textContent = elapsed(ts);
+    });
+  }, 1000);
+
+  // Init
+  renderCollapsed();
+  vm.getSessions().then(data => {
+    sessions = data;
+    renderCollapsed();
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vibe Monitor</title>
+<style>
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --black:#000;--white:#fff;
+    --green:#34c759;--green-dim:rgba(52,199,89,.15);
+    --orange:#ff9f0a;--orange-dim:rgba(255,159,10,.12);
+    --blue:#0a84ff;--blue-dim:rgba(10,132,255,.15);
+    --purple:#bf5af2;--purple-dim:rgba(191,90,242,.15);
+    --gray:#8e8e93;--gray-dim:rgba(142,142,147,.12);
+    --card-bg:rgba(255,255,255,.05);--card-hover:rgba(255,255,255,.09);
+    --border:rgba(255,255,255,.06);--border-hover:rgba(255,255,255,.12);
+    --text-primary:rgba(255,255,255,1);
+    --text-secondary:rgba(255,255,255,.6);
+    --text-tertiary:rgba(255,255,255,.4);
+    --radius:20px;--radius-sm:12px;--radius-xs:8px;
+    --font-sans:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",system-ui,sans-serif;
+    --font-mono:"SF Mono","Fira Code","Cascadia Code",ui-monospace,monospace;
+    --spring:cubic-bezier(.175,.885,.32,1.275);
+    --ease-out:cubic-bezier(.25,1,.5,1);
+  }
+  html,body{height:100%;background:#1a1a1a;font-family:var(--font-sans);color:var(--text-primary);overflow:hidden}
+  body{display:flex;justify-content:center;padding-top:12px}
+
+  /* ── Collapsed bar ── */
+  #collapsed{
+    position:fixed;top:12px;left:50%;transform:translateX(-50%);
+    width:220px;height:36px;
+    background:var(--black);border-radius:18px;
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    cursor:pointer;z-index:9999;
+    box-shadow:0 2px 20px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.08);
+    transition:all .4s var(--spring);
+    user-select:none;
+  }
+  #collapsed:hover{transform:translateX(-50%) scale(1.04);box-shadow:0 4px 30px rgba(0,0,0,.7),0 0 0 .5px rgba(255,255,255,.12)}
+  #collapsed.hidden{opacity:0;pointer-events:none;transform:translateX(-50%) scale(.85)}
+  .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;transition:background .3s}
+  .dot.green{background:var(--green)}
+  .dot.orange{background:var(--orange);animation:pulse-orange 1.8s ease-in-out infinite}
+  .dot.blue{background:var(--blue)}
+  .dot.purple{background:var(--purple)}
+  .dot.gray{background:var(--gray)}
+  @keyframes pulse-orange{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.75)}}
+  #collapsed .count{font-size:13px;font-weight:500;color:var(--text-secondary);letter-spacing:-.01em;margin-left:4px}
+
+  /* ── Expanded panel ── */
+  #panel{
+    position:fixed;top:12px;left:50%;transform:translateX(-50%) scale(.92);
+    width:400px;max-height:600px;
+    background:var(--black);border-radius:var(--radius);
+    box-shadow:0 8px 60px rgba(0,0,0,.8),0 0 0 .5px rgba(255,255,255,.08);
+    display:flex;flex-direction:column;
+    z-index:9998;overflow:hidden;
+    opacity:0;pointer-events:none;
+    transition:all .35s var(--spring);
+  }
+  #panel.visible{opacity:1;pointer-events:auto;transform:translateX(-50%) scale(1)}
+
+  /* ── Header ── */
+  .panel-header{
+    display:flex;align-items:center;padding:14px 16px 10px;gap:10px;flex-shrink:0;
+  }
+  .waveform{display:flex;align-items:flex-end;gap:2px;height:16px}
+  .waveform .bar{width:3px;border-radius:1.5px;background:var(--green);animation:wave 1.2s ease-in-out infinite}
+  .waveform .bar:nth-child(1){height:6px;animation-delay:0s}
+  .waveform .bar:nth-child(2){height:12px;animation-delay:.15s}
+  .waveform .bar:nth-child(3){height:8px;animation-delay:.3s}
+  .waveform .bar:nth-child(4){height:14px;animation-delay:.1s}
+  .waveform .bar:nth-child(5){height:5px;animation-delay:.25s}
+  @keyframes wave{0%,100%{height:4px}50%{height:16px}}
+  .header-title{font-size:13px;font-weight:600;color:var(--text-secondary);flex:1;letter-spacing:-.01em}
+  .close-btn{
+    width:28px;height:28px;border-radius:50%;
+    background:rgba(255,255,255,.06);border:none;
+    color:var(--text-tertiary);font-size:14px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:all .2s;
+  }
+  .close-btn:hover{background:rgba(255,255,255,.12);color:var(--text-primary)}
+  .divider{height:.5px;background:var(--border);margin:0 16px;flex-shrink:0}
+
+  /* ── Session list ── */
+  .session-list{
+    flex:1;overflow-y:auto;padding:8px;
+    scrollbar-width:none;
+  }
+  .session-list::-webkit-scrollbar{display:none}
+
+  /* ── Session card ── */
+  .session-card{
+    background:var(--card-bg);
+    border:1px solid var(--border);
+    border-radius:var(--radius-sm);
+    padding:12px;margin-bottom:6px;
+    cursor:pointer;
+    transition:all .25s var(--ease-out);
+    animation:card-in .35s var(--ease-out) both;
+  }
+  @keyframes card-in{from{opacity:0;transform:translateY(8px)}}
+  .session-card:hover{background:var(--card-hover);border-color:var(--border-hover)}
+  .session-card:last-child{margin-bottom:0}
+
+  .card-top{display:flex;align-items:center;gap:8px}
+  .agent-icon{
+    width:28px;height:28px;border-radius:var(--radius-xs);
+    display:flex;align-items:center;justify-content:center;
+    font-size:14px;flex-shrink:0;
+  }
+  .agent-icon.claude{background:linear-gradient(135deg,#d97706,#f59e0b)}
+  .agent-icon.codex{background:linear-gradient(135deg,#059669,#34d399)}
+  .agent-icon.gemini{background:linear-gradient(135deg,#7c3aed,#a78bfa)}
+  .agent-icon.default{background:linear-gradient(135deg,#6366f1,#818cf8)}
+  .card-info{flex:1;min-width:0}
+  .project-name{font-size:13px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .status-badge{
+    display:inline-flex;align-items:center;gap:4px;
+    padding:2px 8px;border-radius:10px;
+    font-size:10px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;
+    margin-top:2px;
+  }
+  .status-badge .badge-dot{width:5px;height:5px;border-radius:50%}
+  .status-badge.green{background:var(--green-dim);color:var(--green)}
+  .status-badge.green .badge-dot{background:var(--green)}
+  .status-badge.orange{background:var(--orange-dim);color:var(--orange)}
+  .status-badge.orange .badge-dot{background:var(--orange)}
+  .status-badge.blue{background:var(--blue-dim);color:var(--blue)}
+  .status-badge.blue .badge-dot{background:var(--blue)}
+  .status-badge.purple{background:var(--purple-dim);color:var(--purple)}
+  .status-badge.purple .badge-dot{background:var(--purple)}
+  .status-badge.gray{background:var(--gray-dim);color:var(--gray)}
+  .status-badge.gray .badge-dot{background:var(--gray)}
+
+  .jump-btn{
+    width:28px;height:28px;border-radius:50%;
+    background:rgba(255,255,255,.04);border:none;
+    color:var(--text-tertiary);font-size:13px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:all .2s;flex-shrink:0;
+  }
+  .jump-btn:hover{background:rgba(255,255,255,.1);color:var(--text-primary)}
+
+  /* ── Content area ── */
+  .card-content{margin-top:10px}
+
+  /* Approval card */
+  .approval-card{
+    background:var(--orange-dim);
+    border:1px solid rgba(255,159,10,.18);
+    border-radius:var(--radius-xs);padding:10px;
+  }
+  .approval-header{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .approval-icon{font-size:13px}
+  .approval-title{font-size:11px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:.04em}
+  .approval-tool{font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:2px}
+  .approval-cmd{
+    font-size:11px;font-family:var(--font-mono);
+    color:var(--text-secondary);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    margin-bottom:10px;
+    background:rgba(0,0,0,.25);padding:4px 6px;border-radius:4px;
+  }
+  .approval-actions{display:flex;gap:6px}
+  .approval-actions button{
+    flex:1;padding:6px 0;border:none;border-radius:6px;
+    font-size:11px;font-weight:600;cursor:pointer;
+    transition:all .15s;letter-spacing:.01em;
+  }
+  .btn-deny{background:rgba(255,255,255,.08);color:var(--text-secondary)}
+  .btn-deny:hover{background:rgba(255,255,255,.14);color:var(--text-primary)}
+  .btn-allow{background:var(--green);color:#000}
+  .btn-allow:hover{filter:brightness(1.1)}
+  .btn-always{background:rgba(52,199,89,.15);color:var(--green)}
+  .btn-always:hover{background:rgba(52,199,89,.25)}
+
+  /* Question card */
+  .question-card{
+    background:var(--orange-dim);
+    border:1px solid rgba(255,159,10,.18);
+    border-radius:var(--radius-xs);padding:10px;
+  }
+  .question-header{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .question-icon{font-size:13px}
+  .question-label{font-size:11px;font-weight:600;color:var(--orange);text-transform:uppercase;letter-spacing:.04em}
+  .question-text{font-size:12px;color:var(--text-primary);line-height:1.4;margin-bottom:8px}
+  .question-options{display:flex;flex-direction:column;gap:4px}
+  .question-option{
+    background:rgba(255,255,255,.06);border:1px solid var(--border);
+    border-radius:6px;padding:6px 8px;
+    font-size:11px;color:var(--text-secondary);cursor:pointer;
+    transition:all .15s;
+  }
+  .question-option:hover{background:rgba(255,255,255,.1);border-color:var(--border-hover);color:var(--text-primary)}
+  .question-option .opt-label{font-weight:600;color:var(--text-primary)}
+  .question-option .opt-desc{color:var(--text-tertiary);margin-top:1px}
+
+  /* Tool activity */
+  .tool-activity{display:flex;align-items:center;gap:8px;padding:4px 0}
+  .tool-icon{
+    width:24px;height:24px;border-radius:6px;
+    background:var(--blue-dim);
+    display:flex;align-items:center;justify-content:center;
+    font-size:11px;flex-shrink:0;
+  }
+  .tool-text{font-size:12px;color:var(--text-secondary)}
+  .tool-text span{color:var(--blue);font-weight:500}
+  .typing-dots{display:inline-flex;gap:2px;margin-left:2px;vertical-align:middle}
+  .typing-dots i{
+    width:3px;height:3px;border-radius:50%;background:var(--blue);
+    display:inline-block;animation:blink 1.4s infinite both;
+  }
+  .typing-dots i:nth-child(2){animation-delay:.2s}
+  .typing-dots i:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+
+  /* Last prompt */
+  .last-prompt{
+    font-size:12px;color:var(--text-tertiary);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    padding:2px 0;
+  }
+  .last-prompt strong{color:var(--text-secondary);font-weight:500}
+
+  /* Card footer */
+  .card-footer{
+    display:flex;align-items:center;justify-content:space-between;
+    margin-top:8px;padding-top:8px;
+    border-top:1px solid rgba(255,255,255,.04);
+  }
+  .agent-type{font-size:10px;color:var(--text-tertiary);font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+  .elapsed{font-size:10px;color:var(--text-tertiary);font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+
+  /* ── Empty state ── */
+  .empty-state{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:48px 20px;text-align:center;
+  }
+  .empty-icon{font-size:36px;margin-bottom:12px;opacity:.5}
+  .empty-title{font-size:15px;font-weight:600;color:var(--text-secondary);margin-bottom:4px}
+  .empty-desc{font-size:12px;color:var(--text-tertiary)}
+
+  /* ── Connection indicator ── */
+  .conn-indicator{
+    display:flex;align-items:center;gap:5px;
+    padding:6px 16px 10px;flex-shrink:0;
+  }
+  .conn-dot{width:6px;height:6px;border-radius:50%;transition:background .3s}
+  .conn-dot.connected{background:var(--green)}
+  .conn-dot.disconnected{background:#ff453a;animation:pulse-red 2s ease-in-out infinite}
+  @keyframes pulse-red{0%,100%{opacity:1}50%{opacity:.4}}
+  .conn-text{font-size:10px;color:var(--text-tertiary);letter-spacing:.02em}
+
+  /* ── Backdrop ── */
+  #backdrop{
+    position:fixed;inset:0;z-index:9997;
+    opacity:0;pointer-events:none;transition:opacity .3s;
+  }
+  #backdrop.visible{opacity:1;pointer-events:auto}
+</style>
+</head>
+<body>
+
+<!-- Collapsed bar -->
+<div id="collapsed" onclick="expand()">
+  <div id="dots"></div>
+  <span class="count" id="collapsedCount"></span>
+</div>
+
+<!-- Backdrop -->
+<div id="backdrop" onclick="collapse()"></div>
+
+<!-- Expanded panel -->
+<div id="panel">
+  <div class="panel-header">
+    <div class="waveform"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+    <span class="header-title" id="headerTitle">0 sessions</span>
+    <button class="close-btn" onclick="collapse()" aria-label="Close">&times;</button>
+  </div>
+  <div class="divider"></div>
+  <div class="session-list" id="sessionList"></div>
+  <div class="divider"></div>
+  <div class="conn-indicator">
+    <div class="conn-dot" id="connDot"></div>
+    <span class="conn-text" id="connText">Connecting...</span>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ── State ──
+  let sessions = [];
+  let expanded = false;
+  let ws = null;
+  let connected = false;
+  let reconnectTimer = null;
+  let elapsedTimer = null;
+
+  // ── DOM refs ──
+  const $collapsed = document.getElementById("collapsed");
+  const $dots = document.getElementById("dots");
+  const $collapsedCount = document.getElementById("collapsedCount");
+  const $panel = document.getElementById("panel");
+  const $backdrop = document.getElementById("backdrop");
+  const $headerTitle = document.getElementById("headerTitle");
+  const $sessionList = document.getElementById("sessionList");
+  const $connDot = document.getElementById("connDot");
+  const $connText = document.getElementById("connText");
+
+  // ── Helpers ──
+  const statusToColor = (s) => {
+    if (!s) return "gray";
+    const m = {
+      waiting_for_approval: "orange", question: "orange",
+      processing: "green", thinking: "green", running_tool: "green",
+      waiting_for_input: "blue",
+      compacting: "purple",
+      ended: "gray", idle: "gray"
+    };
+    return m[s] || "gray";
+  };
+
+  const statusLabel = (s) => {
+    if (!s) return "idle";
+    return s.replace(/_/g, " ");
+  };
+
+  const agentIcon = (type) => {
+    const t = (type || "").toLowerCase();
+    if (t.includes("claude")) return { cls: "claude", ch: "C" };
+    if (t.includes("codex"))  return { cls: "codex",  ch: "X" };
+    if (t.includes("gemini")) return { cls: "gemini", ch: "G" };
+    return { cls: "default", ch: t.charAt(0).toUpperCase() || "A" };
+  };
+
+  const toolIconFor = (name) => {
+    const n = (name || "").toLowerCase();
+    if (n.includes("edit") || n.includes("write")) return "\u270F";
+    if (n.includes("read")) return "\u{1F4C4}";
+    if (n.includes("bash") || n.includes("terminal")) return "\u25B6";
+    if (n.includes("search") || n.includes("grep") || n.includes("glob")) return "\u{1F50D}";
+    return "\u2699";
+  };
+
+  const toolLabel = (name) => {
+    const n = (name || "").toLowerCase();
+    if (n.includes("edit"))  return "Editing file";
+    if (n.includes("write")) return "Writing file";
+    if (n.includes("read"))  return "Reading file";
+    if (n.includes("bash"))  return "Running command";
+    if (n.includes("grep"))  return "Searching";
+    if (n.includes("glob"))  return "Finding files";
+    return name || "Running tool";
+  };
+
+  const elapsed = (ts) => {
+    if (!ts) return "--:--";
+    const diff = Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 1000));
+    const h = Math.floor(diff / 3600);
+    const m = Math.floor((diff % 3600) / 60);
+    const s = diff % 60;
+    const pad = n => String(n).padStart(2, "0");
+    return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  };
+
+  const esc = (s) => {
+    if (!s) return "";
+    const d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  };
+
+  // ── Render collapsed ──
+  function renderCollapsed() {
+    const active = sessions.filter(s => s.status !== "ended");
+    const sorted = [...sessions].sort((a, b) => {
+      const pr = { orange: 0, green: 1, blue: 2, purple: 3, gray: 4 };
+      return (pr[statusToColor(a.status)] ?? 4) - (pr[statusToColor(b.status)] ?? 4);
+    });
+    const shown = sorted.slice(0, 5);
+    $dots.innerHTML = shown.map(s =>
+      `<div class="dot ${statusToColor(s.status)}"></div>`
+    ).join("");
+    const n = sessions.length;
+    $collapsedCount.textContent = n === 0 ? "" : n === 1 ? "1 session" : `${n} sessions`;
+  }
+
+  // ── Render expanded ──
+  function renderPanel() {
+    const n = sessions.length;
+    $headerTitle.textContent = n === 0 ? "No sessions" : n === 1 ? "1 session" : `${n} sessions`;
+
+    if (n === 0) {
+      $sessionList.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">\u2728</div>
+          <div class="empty-title">The island awaits</div>
+          <div class="empty-desc">Start a new AI coding session</div>
+        </div>`;
+      return;
+    }
+
+    // Sort: attention-needing first
+    const sorted = [...sessions].sort((a, b) => {
+      const pr = { orange: 0, green: 1, blue: 2, purple: 3, gray: 4 };
+      return (pr[statusToColor(a.status)] ?? 4) - (pr[statusToColor(b.status)] ?? 4);
+    });
+
+    $sessionList.innerHTML = sorted.map(s => {
+      const color = statusToColor(s.status);
+      const icon = agentIcon(s.agentType);
+      const proj = esc(s.projectName || s.cwd || "Untitled");
+
+      let content = "";
+
+      if (s.status === "waiting_for_approval" && s.approval) {
+        const cmd = esc(s.approval.command || s.approval.filePath || "");
+        content = `
+          <div class="card-content">
+            <div class="approval-card">
+              <div class="approval-header">
+                <span class="approval-icon">\u26A0</span>
+                <span class="approval-title">Needs Approval</span>
+              </div>
+              <div class="approval-tool">${esc(s.approval.toolName || "Tool")}</div>
+              ${cmd ? `<div class="approval-cmd">${cmd}</div>` : ""}
+              <div class="approval-actions">
+                <button class="btn-deny" onclick="sendApproval('${esc(s.id)}','deny',event)">Deny</button>
+                <button class="btn-allow" onclick="sendApproval('${esc(s.id)}','allow',event)">Allow</button>
+                <button class="btn-always" onclick="sendApproval('${esc(s.id)}','always',event)">Always</button>
+              </div>
+            </div>
+          </div>`;
+      } else if (s.status === "question" && s.question) {
+        const q = s.question.questions?.[0];
+        if (q) {
+          const opts = (q.options || []).map(o => `
+            <div class="question-option">
+              <div class="opt-label">${esc(o.label)}</div>
+              ${o.description ? `<div class="opt-desc">${esc(o.description)}</div>` : ""}
+            </div>`).join("");
+          content = `
+            <div class="card-content">
+              <div class="question-card">
+                <div class="question-header">
+                  <span class="question-icon">\u2753</span>
+                  <span class="question-label">${esc(q.header || "Question")}</span>
+                </div>
+                <div class="question-text">${esc(q.question)}</div>
+                ${opts ? `<div class="question-options">${opts}</div>` : ""}
+              </div>
+            </div>`;
+        }
+      } else if (s.status === "running_tool" && s.currentToolName) {
+        content = `
+          <div class="card-content">
+            <div class="tool-activity">
+              <div class="tool-icon">${toolIconFor(s.currentToolName)}</div>
+              <div class="tool-text"><span>${esc(toolLabel(s.currentToolName))}</span><span class="typing-dots"><i></i><i></i><i></i></span></div>
+            </div>
+          </div>`;
+      } else if (s.lastUserPrompt) {
+        content = `
+          <div class="card-content">
+            <div class="last-prompt"><strong>You:</strong> ${esc(s.lastUserPrompt)}</div>
+          </div>`;
+      }
+
+      return `
+        <div class="session-card" onclick="jumpTo('${esc(s.id)}')">
+          <div class="card-top">
+            <div class="agent-icon ${icon.cls}">${icon.ch}</div>
+            <div class="card-info">
+              <div class="project-name">${proj}</div>
+              <div class="status-badge ${color}"><span class="badge-dot"></span>${esc(statusLabel(s.status))}</div>
+            </div>
+            <button class="jump-btn" onclick="jumpTo('${esc(s.id)}');event.stopPropagation()" aria-label="Jump to session">\u2197</button>
+          </div>
+          ${content}
+          <div class="card-footer">
+            <span class="agent-type">${esc(s.agentType || "Agent")}</span>
+            <span class="elapsed" data-started="${s.startedAt || ""}">${elapsed(s.startedAt)}</span>
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+  // ── Connection indicator ──
+  function renderConn() {
+    if (connected) {
+      $connDot.className = "conn-dot connected";
+      $connText.textContent = "Connected";
+    } else {
+      $connDot.className = "conn-dot disconnected";
+      $connText.textContent = "Reconnecting...";
+    }
+  }
+
+  // ── Expand / Collapse ──
+  window.expand = () => {
+    if (expanded) return;
+    expanded = true;
+    $collapsed.classList.add("hidden");
+    $panel.classList.add("visible");
+    $backdrop.classList.add("visible");
+    renderPanel();
+  };
+  window.collapse = () => {
+    if (!expanded) return;
+    expanded = false;
+    $collapsed.classList.remove("hidden");
+    $panel.classList.remove("visible");
+    $backdrop.classList.remove("visible");
+  };
+
+  // ── Actions ──
+  window.jumpTo = (id) => {
+    console.log("Jump to session:", id);
+  };
+
+  window.sendApproval = (sessionId, action, evt) => {
+    if (evt) { evt.stopPropagation(); evt.preventDefault(); }
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "approval", sessionId, action }));
+    }
+  };
+
+  // ── WebSocket ──
+  function connect() {
+    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
+    try {
+      ws = new WebSocket("ws://localhost:3777");
+    } catch(_) {
+      scheduleReconnect();
+      return;
+    }
+    ws.onopen = () => {
+      connected = true;
+      renderConn();
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === "update" && Array.isArray(msg.sessions)) {
+          sessions = msg.sessions;
+          renderCollapsed();
+          if (expanded) renderPanel();
+        }
+      } catch(_){}
+    };
+    ws.onclose = () => {
+      connected = false;
+      renderConn();
+      scheduleReconnect();
+    };
+    ws.onerror = () => {
+      connected = false;
+      renderConn();
+    };
+  }
+
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      connect();
+    }, 3000);
+  }
+
+  // ── Elapsed time ticker ──
+  function tickElapsed() {
+    document.querySelectorAll(".elapsed[data-started]").forEach(el => {
+      const ts = el.getAttribute("data-started");
+      if (ts) el.textContent = elapsed(ts);
+    });
+  }
+
+  // ── Init ──
+  renderCollapsed();
+  renderConn();
+  connect();
+  elapsedTimer = setInterval(tickElapsed, 1000);
+
+  // ── Demo data (remove in production) ──
+  // Uncomment below to see the UI with sample data:
+  /*
+  sessions = [
+    {
+      id: "s1", agentType: "Claude Code", status: "waiting_for_approval",
+      projectName: "evttosds", cwd: "/src/miot/evttosds",
+      lastUserPrompt: "Add retry logic to the consumer",
+      approval: { toolName: "Bash", command: "rm -rf /tmp/build && make build" },
+      startedAt: new Date(Date.now() - 340000).toISOString()
+    },
+    {
+      id: "s2", agentType: "Claude Code", status: "running_tool",
+      projectName: "vibe-monitor", cwd: "/src/miot/VibeMonitor",
+      currentToolName: "Edit",
+      lastUserPrompt: "Create the UI",
+      startedAt: new Date(Date.now() - 125000).toISOString()
+    },
+    {
+      id: "s3", agentType: "Codex", status: "processing",
+      projectName: "miot-spec-service", cwd: "/src/miot/spec",
+      lastUserPrompt: "Refactor the property parser",
+      startedAt: new Date(Date.now() - 890000).toISOString()
+    },
+    {
+      id: "s4", agentType: "Gemini", status: "ended",
+      projectName: "device-shadow", cwd: "/src/miot/shadow",
+      lastUserPrompt: "Run all tests",
+      startedAt: new Date(Date.now() - 3600000).toISOString()
+    }
+  ];
+  renderCollapsed();
+  if (expanded) renderPanel();
+  */
+
+})();
+</script>
+</body>
+</html>

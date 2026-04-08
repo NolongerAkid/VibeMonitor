@@ -1,0 +1,18 @@
+{
+  "name": "vibe-monitor",
+  "version": "1.0.0",
+  "description": "A Dynamic Island-style terminal monitor for AI coding sessions",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron src/main.js",
+    "demo": "electron src/main.js --demo",
+    "web": "node src/server.js",
+    "install-hooks": "node src/install-hooks.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "electron": "^41.2.0"
+  }
+}
