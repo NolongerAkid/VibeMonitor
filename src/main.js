@@ -341,11 +341,9 @@ function newClaudeSession() {
   const script = `
     tell application "iTerm"
       activate
-      tell current window
-        create tab with default profile
-        tell current session
-          write text "claude"
-        end tell
+      set newWindow to (create window with default profile)
+      tell current session of newWindow
+        write text "cd ~ && claude"
       end tell
     end tell`;
   execFile("osascript", ["-e", script], (err) => {
