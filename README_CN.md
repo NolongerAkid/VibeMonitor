@@ -6,12 +6,6 @@
 
 同时追踪多个 Claude Code / Codex / Gemini 会话，任务完成或需要审批时即时通知，一键跳转到对应终端。
 
-## 效果截图
-
-| 收起状态（有待处理项） | 展开面板 |
-|:---:|:---:|
-| ![收起](screenshots/collapsed-active.png) | ![展开](screenshots/expanded-panel.png) |
-
 ## 功能特性
 
 - **灵动岛 UI** — 平时隐藏为屏幕顶部一条细线，hover 或需要关注时自动展开
