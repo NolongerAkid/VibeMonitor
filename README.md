@@ -6,6 +6,12 @@ A Dynamic Island-style macOS menu bar app that monitors your AI coding sessions 
 
 Track multiple Claude Code / Codex / Gemini sessions at a glance, get notified when tasks complete or need approval, and jump to the right terminal with one click.
 
+## Screenshots
+
+| Collapsed (attention needed) | Expanded panel |
+|:---:|:---:|
+| ![Collapsed](screenshots/collapsed-active.png) | ![Expanded](screenshots/expanded-panel.png) |
+
 ## Features
 
 - **Dynamic Island UI** — Sits at the top of your screen as a thin line, expands on hover or when attention is needed
