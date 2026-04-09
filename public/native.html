@@ -32,15 +32,51 @@
   }
 
   /* ── Collapsed ── */
-  #collapsed{
-    width:100%;height:36px;
-    background:var(--black);border-radius:18px;
-    display:flex;align-items:center;justify-content:center;gap:6px;
-    cursor:pointer;
-    box-shadow:0 2px 20px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.08);
-    transition:all .3s var(--spring);
+  #collapsed-wrap{
+    width:100%;padding-top:2px;
+    display:flex;justify-content:center;
   }
-  #collapsed:hover{transform:scale(1.03);box-shadow:0 4px 30px rgba(0,0,0,.7),0 0 0 .5px rgba(255,255,255,.12)}
+  /* Default: thin pill, hidden state */
+  #collapsed{
+    width:60px;height:6px;
+    background:rgba(255,255,255,.15);border-radius:3px;
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    cursor:pointer;overflow:hidden;
+    box-shadow:0 2px 10px rgba(0,0,0,.4);
+    transition:all .4s var(--spring);
+  }
+  #collapsed .dot,#collapsed .count{opacity:0;transition:opacity .25s}
+
+  /* Hover: expand to full bar */
+  #collapsed-wrap:hover #collapsed{
+    width:100%;height:36px;border-radius:18px;
+    background:var(--black);
+    box-shadow:0 2px 20px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.08);
+  }
+  #collapsed-wrap:hover #collapsed .dot,
+  #collapsed-wrap:hover #collapsed .count{opacity:1}
+  #collapsed-wrap:hover #collapsed:hover{transform:scale(1.03);box-shadow:0 4px 30px rgba(0,0,0,.7),0 0 0 .5px rgba(255,255,255,.12)}
+
+  /* Active: has attention items — always show full island */
+  #collapsed.active{
+    width:100%;height:36px;border-radius:18px;
+    background:var(--black);
+    box-shadow:0 2px 20px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.08);
+  }
+  #collapsed.active .dot,#collapsed.active .count{opacity:1}
+  #collapsed.active:hover{transform:scale(1.03);box-shadow:0 4px 30px rgba(0,0,0,.7),0 0 0 .5px rgba(255,255,255,.12)}
+
+  /* Pop animation when attention arrives */
+  @keyframes island-pop{
+    0%{transform:scale(1)}
+    15%{transform:scale(1.12)}
+    30%{transform:scale(.97)}
+    50%{transform:scale(1.05)}
+    70%{transform:scale(.99)}
+    100%{transform:scale(1)}
+  }
+  #collapsed.pop{animation:island-pop .6s var(--ease)}
+
   #collapsed.hidden{display:none}
   .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;transition:background .3s}
   .dot.green{background:var(--green)}
@@ -239,9 +275,11 @@
 <body>
 
 <!-- Collapsed -->
-<div id="collapsed">
-  <span id="dots"></span>
-  <span class="count" id="ccount"></span>
+<div id="collapsed-wrap">
+  <div id="collapsed">
+    <span id="dots"></span>
+    <span class="count" id="ccount"></span>
+  </div>
 </div>
 
 <!-- Expanded -->
@@ -268,6 +306,7 @@
   let sessions = [];
   let expanded = false;
 
+  const $cWrap = document.getElementById("collapsed-wrap");
   const $c = document.getElementById("collapsed");
   const $dots = document.getElementById("dots");
   const $ccount = document.getElementById("ccount");
@@ -359,12 +398,30 @@
     return parts.join(" \u00b7 ");
   }
 
+  // Track previous attention count for pop animation
+  let prevAttnCount = 0;
+
   // Render collapsed
   function renderCollapsed() {
-    const attnSessions = sessions.filter(needsAttention).slice(0,5);
-    const dots = attnSessions.length > 0 ? attnSessions : sorted().slice(0,3);
+    const attnSessions = sessions.filter(needsAttention);
+    const attnCount = attnSessions.length;
+    const dots = attnCount > 0 ? attnSessions.slice(0,5) : sorted().slice(0,3);
     $dots.innerHTML = dots.map(x => `<div class="dot ${color(x.status)}"></div>`).join("");
     $ccount.textContent = collapsedSummary(sessions);
+
+    // Toggle active state: show full island when there are attention items
+    if (attnCount > 0) {
+      $c.classList.add("active");
+      // Pop animation when attention count increases
+      if (attnCount > prevAttnCount) {
+        $c.classList.remove("pop");
+        void $c.offsetWidth; // reflow to restart animation
+        $c.classList.add("pop");
+      }
+    } else {
+      $c.classList.remove("active");
+    }
+    prevAttnCount = attnCount;
   }
 
   // Render expanded
@@ -442,11 +499,11 @@
   function setExpanded(v) {
     expanded = v;
     if (v) {
-      $c.classList.add("hidden");
+      $cWrap.style.display = "none";
       $panel.classList.add("visible");
       renderPanel();
     } else {
-      $c.classList.remove("hidden");
+      $cWrap.style.display = "";
       $panel.classList.remove("visible");
     }
   }

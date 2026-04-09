@@ -251,22 +251,15 @@ function updateTrayIcon() {
 }
 
 function getWindowPosition() {
-  // Use the display that contains the notch (built-in display)
-  // Fall back to primary display
   const displays = screen.getAllDisplays();
   const builtIn = displays.find(d => d.internal) || screen.getPrimaryDisplay();
 
-  // bounds.width gives the full pixel width of the screen
-  // workArea.y gives the top of the usable area (below menu bar / notch)
   const screenW = builtIn.bounds.width;
-  const menuBarBottom = builtIn.workArea.y; // e.g. 25 for normal menu bar, ~38 for notch
+  const menuBarBottom = builtIn.workArea.y;
 
   const w = isExpanded ? EXPANDED_W : COLLAPSED_W;
   const h = isExpanded ? EXPANDED_H : COLLAPSED_H;
-
-  // Center horizontally on the built-in display
   const x = builtIn.bounds.x + Math.round(screenW / 2 - w / 2);
-  // Position just at the menu bar bottom (inside the notch area)
   const y = builtIn.bounds.y + Math.max(menuBarBottom - builtIn.bounds.y, 0) + 2;
   return { x, y, w, h };
 }
@@ -332,7 +325,6 @@ function collapsePanel() {
   if (!isExpanded || !mainWindow) return;
   isExpanded = false;
   mainWindow.webContents.send("panel-state", false);
-  // Delay resize to allow animation
   setTimeout(() => {
     if (!isExpanded && mainWindow && !mainWindow.isDestroyed()) {
       const { x, y, w, h } = getWindowPosition();
