@@ -1,5 +1,7 @@
 # Vibe Monitor
 
+English | [中文](README_CN.md)
+
 A Dynamic Island-style macOS menu bar app that monitors your AI coding sessions in real time. Inspired by [Vibe Island](https://vibeisland.app/).
 
 Track multiple Claude Code / Codex / Gemini sessions at a glance, get notified when tasks complete or need approval, and jump to the right terminal with one click.
