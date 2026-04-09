@@ -74,6 +74,12 @@ function handleEvent(evt) {
   // Claude Code hook_event_name mapping
   const hookEvent = evt.hook_event_name || "";
 
+  // Auto-mark as read when session has new activity (except events that explicitly set unread)
+  const setsUnread = ["Stop", "PermissionRequest"];
+  if (!setsUnread.includes(hookEvent) && !s.read) {
+    s.read = true;
+  }
+
   switch (hookEvent) {
     case "SessionStart":
       s.status = "waiting_for_input"; s.startedAt = new Date().toISOString();
@@ -81,8 +87,9 @@ function handleEvent(evt) {
       console.log(`[event] SessionStart: ${sid} (${s.projectName || s.cwd})`);
       break;
     case "SessionEnd":
-      s.status = "ended"; scheduleRemoval(sid);
       console.log(`[event] SessionEnd: ${sid}`);
+      sessions.delete(sid);
+      { const old = removalTimers.get(sid); if (old) { clearTimeout(old); removalTimers.delete(sid); } }
       break;
     case "UserPromptSubmit":
       if (evt.prompt != null) s.lastUserPrompt = evt.prompt;
@@ -98,10 +105,21 @@ function handleEvent(evt) {
       break;
     case "PermissionRequest": {
       const inp = evt.tool_input || {};
-      s.approval = { toolName: evt.tool_name || null, command: inp.command || null, filePath: inp.file_path || null };
-      s.status = "waiting_for_approval";
-      s.read = false;
-      sendNotification(s, "Needs Approval", `${s.approval.toolName || "Tool"}: ${s.approval.command || s.approval.filePath || ""}`);
+      const toolName = evt.tool_name || "";
+      if (toolName === "AskUserQuestion") {
+        // This is a question, not a permission request
+        const questions = inp.questions || [];
+        s.question = { questions };
+        s.status = "question";
+        s.read = false;
+        const q = questions[0];
+        sendNotification(s, "Question", q ? q.question : "Needs your input");
+      } else {
+        s.approval = { toolName: toolName || null, command: inp.command || null, filePath: inp.file_path || null };
+        s.status = "waiting_for_approval";
+        s.read = false;
+        sendNotification(s, "Needs Approval", `${s.approval.toolName || "Tool"}: ${s.approval.command || s.approval.filePath || ""}`);
+      }
       break;
     }
     case "Notification":
@@ -143,9 +161,9 @@ function sendNotification(session, title, body) {
       silent: false,
     });
     n.on("click", () => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        expandPanel();
-      }
+      session.read = true;
+      session.updatedAt = new Date().toISOString();
+      broadcast();
       jumpToTerminal(session);
     });
     n.show();
